@@ -28,7 +28,8 @@ class MultiLabelMetric(Metric):
         Args:
             logits: Raw output scores from the model (N, C).
             dataset: An iterable yielding (input, labels), where labels
-                     is expected to be an iterable of positive label indices for that sample.
+                     can be either an iterable of positive label indices
+                     or a binary vector/tensor [0, 1, 0, ...].
 
         Returns:
             A tuple containing:
@@ -45,25 +46,73 @@ class MultiLabelMetric(Metric):
         # Use a standard threshold of 0.5 for binary predictions
         predictions = (probs > 0.5).astype(np.int32)
 
-        # Extract labels from the dataset
-        # Assumes dataset yields (input, label_list)
-        labels_list = [y for _, y in dataset]
-        num_samples = len(labels_list)
+        # --- Revised Label Handling ---
+        labels_list_from_dataset = [y for _, y in dataset]
+        num_samples = len(labels_list_from_dataset)
 
-        # Convert list of positive label indices to multi-label binary format (N, C)
-        labels_binary = np.zeros((num_samples, num_classes), dtype=np.int32)
-        for i, positive_labels in enumerate(labels_list):
-            # Ensure positive_labels is iterable and contains valid indices
-            if isinstance(positive_labels, (list, tuple, np.ndarray)):
-                # Filter out any potential out-of-bounds indices gracefully
-                valid_labels = [int(lbl) for lbl in positive_labels if 0 <= lbl < num_classes]
-                if valid_labels:
-                    labels_binary[i, valid_labels] = 1
-            elif isinstance(positive_labels, (int, np.integer)): # Handle single integer label case if needed
-                 if 0 <= positive_labels < num_classes:
-                     labels_binary[i, positive_labels] = 1
-            # Else: row remains all zeros if positive_labels is None, empty, or invalid type
+        if num_samples == 0:
+            # Handle empty dataset case
+            return predictions, np.zeros((0, num_classes), dtype=np.int32), probs
 
+        # Check the format of the first label to determine how to process
+        first_label = labels_list_from_dataset[0]
+
+        # Determine if labels are provided as binary vectors or lists of indices
+        is_binary_vector = False
+        if isinstance(first_label, (torch.Tensor, np.ndarray)):
+            if len(first_label.shape) == 1 and first_label.shape[0] == num_classes:
+                 is_binary_vector = True
+            # Add check for (N, 1) shape tensor/array if needed
+            elif len(first_label.shape) == 2 and first_label.shape[0] == num_classes and first_label.shape[1] == 1:
+                 # Reshape to (N,) if necessary, then treat as binary vector
+                 # This might need adjustment based on exact format
+                 pass # Add specific handling if this case is expected
+
+        if is_binary_vector:
+            # Labels are already in binary vector format (N, C)
+            try:
+                # Stack potentially mixed list of tensors/arrays
+                processed_labels = []
+                for lbl in labels_list_from_dataset:
+                    if isinstance(lbl, torch.Tensor):
+                        processed_labels.append(lbl.cpu().numpy()) # Ensure numpy and on CPU
+                    elif isinstance(lbl, np.ndarray):
+                        processed_labels.append(lbl)
+                    else:
+                         raise TypeError(f"Inconsistent label types in dataset when expecting binary vectors. Got {type(lbl)}")
+                
+                labels_binary = np.stack(processed_labels).astype(np.int32)
+
+                # Basic validation
+                if labels_binary.shape != (num_samples, num_classes):
+                     raise ValueError(f"Label format detection failed: Shape mismatch. Expected ({num_samples}, {num_classes}), Got {labels_binary.shape}")
+                if not ((labels_binary == 0) | (labels_binary == 1)).all():
+                     # Allow -1 if necessary, depending on dataset conventions? For now, strictly binary.
+                     raise ValueError("Label format detection failed: Non-binary (0/1) values found in label vectors.")
+
+            except Exception as e:
+                 raise ValueError(f"Error processing assumed binary label vectors: {e}")
+
+        else:
+             # Assume labels are lists/tuples/arrays of positive indices
+             labels_binary = np.zeros((num_samples, num_classes), dtype=np.int32)
+             for i, positive_labels in enumerate(labels_list_from_dataset):
+                 try:
+                     # Ensure positive_labels is iterable and contains valid indices
+                     # Check if item is number-like before casting to int
+                     valid_indices = [int(lbl) for lbl in positive_labels 
+                                      if isinstance(lbl, (int, float, np.number)) and 0 <= int(lbl) < num_classes]
+                     if valid_indices:
+                         labels_binary[i, valid_indices] = 1
+                 except TypeError:
+                     # Handle cases where positive_labels itself is not iterable or contains non-numeric types
+                     print(f"Warning: Skipping non-iterable or invalid label format for sample {i}: {positive_labels}")
+                     continue # Keep row as zeros
+
+        # Final check on labels_binary shape
+        if labels_binary.shape[0] != num_samples or labels_binary.shape[1] != num_classes:
+            raise ValueError(f"Final labels_binary shape mismatch. Expected ({num_samples}, {num_classes}), Got {labels_binary.shape}")
+            
         return predictions, labels_binary, probs
 
     def calculate(self, logits: torch.Tensor, dataset) -> float:
