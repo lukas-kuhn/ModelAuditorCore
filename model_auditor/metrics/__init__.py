@@ -30,6 +30,16 @@ from .metrics_reloaded import (
     NegativeLogLikelihood
 )
 
+from .multi_label_metrics import (
+    MultiLabelSubsetAccuracy,
+    MultiLabelHammingLoss,
+    MultiLabelPrecision,
+    MultiLabelRecall,
+    MultiLabelF1Score,
+    MultiLabelJaccardScore,
+    MultiLabelAUROC,
+)
+
 __all__ = [
     # Binary Only Metrics
     "Sensitivity",
@@ -59,5 +69,14 @@ __all__ = [
     "ClassWiseECE",
     "ECEKernelDensity",
     "KernelCalibrationError",
-    "NegativeLogLikelihood"
+    "NegativeLogLikelihood",
+
+    # Multi-label Metrics
+    "MultiLabelSubsetAccuracy",
+    "MultiLabelHammingLoss",
+    "MultiLabelPrecision",
+    "MultiLabelRecall",
+    "MultiLabelF1Score",
+    "MultiLabelJaccardScore",
+    "MultiLabelAUROC",
 ] 
