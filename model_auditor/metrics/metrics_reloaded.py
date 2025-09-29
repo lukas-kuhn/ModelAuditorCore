@@ -143,23 +143,16 @@ class NetBenefit(BinaryMetric):
         self.dict_args = {"exchange_rate": exchange_rate}
 
 # Multiclass Metrics
-class Accuracy(BinaryMetric):
-    """Overall accuracy. Works with both binary and multiclass by using argmax."""
+class Accuracy(MetricsReloadedWrapper):
+    """Overall accuracy. Works with both binary and multiclass."""
     def __init__(self):
         super().__init__("accuracy", "accuracy")
 
     def calculate(self, logits: torch.Tensor, dataset) -> float:
         probs, labels = self._prepare_inputs(logits, dataset)
-        predictions = np.argmax(probs, axis=1).astype(np.int32)
-        labels = labels.numpy().astype(np.int32)
-        binary_pred = (predictions == labels).astype(np.int32)
-        binary_ref = np.ones_like(binary_pred)
-        measures = BinaryPairwiseMeasures(
-            pred=binary_pred,
-            ref=binary_ref,
-            measures=[self.metric_key]
-        )
-        return measures.to_dict_meas()[self.metric_key]
+        predictions = np.argmax(probs, axis=1)
+        labels = labels.numpy()
+        return float(np.mean(predictions == labels))
 
 class BalancedAccuracy(MultiClassMetric):
     """Multiclass: Average recall across all classes."""

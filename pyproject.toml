@@ -39,9 +39,8 @@ Homepage = "https://github.com/lukaskuhn/ModelAuditorCore"
 Repository = "https://github.com/lukaskuhn/ModelAuditorCore"
 Issues = "https://github.com/lukaskuhn/ModelAuditorCore/issues"
 
-[tool.setuptools.packages.find]
-where = ["."]
-include = ["model_auditor*"]
+[tool.setuptools]
+packages = ["model_auditor", "model_auditor.metrics", "model_auditor.shifts"]
 
 [tool.setuptools.package-data]
 "*" = ["*.txt", "*.md"]
