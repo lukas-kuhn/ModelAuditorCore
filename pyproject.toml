@@ -40,7 +40,7 @@ Repository = "https://github.com/lukaskuhn/ModelAuditorCore"
 Issues = "https://github.com/lukaskuhn/ModelAuditorCore/issues"
 
 [tool.setuptools]
-packages = {find = {}}
+packages = {find = {exclude = ["build*", "dist*", "*.egg-info", "venv*"]}}
 
 [tool.setuptools.package-data]
 "*" = ["*.txt", "*.md"]
