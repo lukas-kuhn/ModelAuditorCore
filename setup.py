@@ -5,7 +5,7 @@ with open("README.md", "r", encoding="utf-8") as fh:
 
 setup(
     name="model_auditor",
-    version="0.2.1",
+    version="0.2.2",
     description="A library for auditing ML models under distribution shifts",
     long_description=long_description,
     long_description_content_type="text/markdown",
