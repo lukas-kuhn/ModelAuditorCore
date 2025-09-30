@@ -9,20 +9,30 @@ from .distribution_shift import DistributionShift
 from .metric import Metric
 
 class ModelAuditor:
-    def __init__(self, model: Union[torch.nn.Module, str], dataset: Dataset):
+    def __init__(self, model: Union[torch.nn.Module, str], dataset: Dataset, device: str = None, batch_size: int = 32):
         """
         Args:
             model: Either a PyTorch model or path to ONNX model
             dataset: Dataset to audit
+            device: Device to use for inference ('cuda', 'mps', 'cpu'). If None, auto-detect.
+            batch_size: Batch size for inference (default: 32)
         """
         self.is_onnx = isinstance(model, str)
         if self.is_onnx:
             self.model = ort.InferenceSession(model)
         else:
             self.model = model
-        self.device = torch.device("cuda" if torch.cuda.is_available() else "mps")
-        self.model.to(self.device)
+
+        if device is None:
+            self.device = torch.device("cuda" if torch.cuda.is_available() else "mps" if torch.backends.mps.is_available() else "cpu")
+        else:
+            self.device = torch.device(device)
+
+        if not self.is_onnx:
+            self.model.to(self.device)
+
         self.dataset = dataset
+        self.batch_size = batch_size
         self.shifts: List[DistributionShift] = []
         self.metrics: List[Metric] = []
         self.console = Console()
@@ -33,11 +43,11 @@ class ModelAuditor:
     def add_metric(self, metric: Metric) -> None:
         self.metrics.append(metric)
         
-    def _get_predictions(self, x: torch.Tensor) -> torch.Tensor:
-        """Helper method to get predictions from either PyTorch or ONNX model"""
+    def _get_predictions_batch(self, x: torch.Tensor) -> torch.Tensor:
+        """Helper method to get predictions from either PyTorch or ONNX model (batched)"""
         if self.is_onnx:
             # Convert to numpy for ONNX runtime
-            x_numpy = x.numpy()
+            x_numpy = x.cpu().numpy() if x.is_cuda or x.device.type == 'mps' else x.numpy()
             input_name = self.model.get_inputs()[0].name
             pred = self.model.run(None, {input_name: x_numpy})[0]
             return torch.from_numpy(pred)
@@ -62,14 +72,23 @@ class ModelAuditor:
                 shifted_dataset = shift.apply(self.dataset)
                 severity_results = {}
                 
-                # Get model predictions on shifted data
+                # Get model predictions on shifted data using batching
                 if not self.is_onnx:
                     self.model.eval()
                 with torch.no_grad():
                     logits = []
-                    for x, _ in shifted_dataset:
-                        x = x.unsqueeze(0)
-                        logits.append(self._get_predictions(x))
+                    batch_samples = []
+
+                    for i, (x, _) in enumerate(shifted_dataset):
+                        batch_samples.append(x)
+
+                        # Process batch when full or at end of dataset
+                        if len(batch_samples) == self.batch_size or i == len(shifted_dataset) - 1:
+                            batch = torch.stack(batch_samples)
+                            batch_logits = self._get_predictions_batch(batch)
+                            logits.append(batch_logits)
+                            batch_samples = []
+
                     logits = torch.cat(logits, dim=0)
                 
                 # Calculate metrics
