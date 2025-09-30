@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "model_auditor"
-version = "0.2.0"
+version = "0.2.1"
 description = "A library for auditing ML models under distribution shifts"
 readme = "README.md"
 license = {text = "Apache-2.0"}
@@ -40,7 +40,7 @@ Repository = "https://github.com/lukaskuhn/ModelAuditorCore"
 Issues = "https://github.com/lukaskuhn/ModelAuditorCore/issues"
 
 [tool.setuptools]
-packages = ["model_auditor", "model_auditor.metrics", "model_auditor.shifts"]
+packages = {find = {}}
 
 [tool.setuptools.package-data]
 "*" = ["*.txt", "*.md"]
