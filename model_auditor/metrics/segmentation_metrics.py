@@ -41,16 +41,23 @@ class SegmentationMetric(Metric):
         Convert model outputs and dataset labels to prediction and reference masks.
         
         Args:
-            logits: Model outputs of shape (N, C, H, W)
+            logits: Model outputs of shape (N, C, H, W) where C >= 1
             dataset: Dataset yielding (image, mask) tuples
             
         Returns:
             Tuple of (predictions, labels) as numpy arrays of shape (N, H, W)
         """
         logits = logits.cpu()
+        num_classes = logits.shape[1]
         
-        # Get predictions via argmax over class dimension
-        predictions = torch.argmax(logits, dim=1).numpy()  # (N, H, W)
+        if num_classes == 1:
+            # Single-channel binary segmentation: apply sigmoid + threshold
+            # Model outputs (N, 1, H, W) logits for binary classification
+            probs = torch.sigmoid(logits).squeeze(1)  # (N, H, W)
+            predictions = (probs > 0.5).long().numpy()  # (N, H, W)
+        else:
+            # Multi-class segmentation: use argmax over class dimension
+            predictions = torch.argmax(logits, dim=1).numpy()  # (N, H, W)
         
         # Collect ground truth masks from dataset
         labels = []
@@ -103,7 +110,8 @@ class SegmentationMetric(Metric):
         predictions, labels = self._prepare_inputs(logits, dataset)
         num_classes = logits.shape[1]
         
-        if num_classes == 2:
+        # Binary segmentation: C=1 (single channel with sigmoid) or C=2 (two-class softmax)
+        if num_classes <= 2:
             # Binary segmentation: compute directly on class 1 (foreground)
             scores = []
             for i in range(len(predictions)):
@@ -190,7 +198,15 @@ class SegmentationAccuracy(Metric):
     
     def calculate(self, logits: torch.Tensor, dataset) -> float:
         logits = logits.cpu()
-        predictions = torch.argmax(logits, dim=1).numpy()  # (N, H, W)
+        num_classes = logits.shape[1]
+        
+        if num_classes == 1:
+            # Single-channel binary segmentation: apply sigmoid + threshold
+            probs = torch.sigmoid(logits).squeeze(1)  # (N, H, W)
+            predictions = (probs > 0.5).long().numpy()  # (N, H, W)
+        else:
+            # Multi-class segmentation: use argmax
+            predictions = torch.argmax(logits, dim=1).numpy()  # (N, H, W)
         
         labels = []
         for _, mask in dataset:
