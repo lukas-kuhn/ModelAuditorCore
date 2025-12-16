@@ -40,6 +40,17 @@ from .multi_label_metrics import (
     MultiLabelAUROC,
 )
 
+from .segmentation_metrics import (
+    SegmentationDice,
+    SegmentationIoU,
+    SegmentationAccuracy,
+    HausdorffDistance,
+    HausdorffDistance95,
+    AverageSurfaceDistance,
+    NormalizedSurfaceDistance,
+    BoundaryIoU,
+)
+
 __all__ = [
     # Binary Only Metrics
     "Sensitivity",
@@ -79,4 +90,14 @@ __all__ = [
     "MultiLabelF1Score",
     "MultiLabelJaccardScore",
     "MultiLabelAUROC",
+
+    # Segmentation Metrics
+    "SegmentationDice",
+    "SegmentationIoU",
+    "SegmentationAccuracy",
+    "HausdorffDistance",
+    "HausdorffDistance95",
+    "AverageSurfaceDistance",
+    "NormalizedSurfaceDistance",
+    "BoundaryIoU",
 ] 

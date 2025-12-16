@@ -38,6 +38,20 @@ auditor.add_metric(AUROC())
 results = auditor.audit(dataset)
 ```
 
+### Segmentation
+
+```python
+from model_auditor.metrics import (
+    SegmentationDice, SegmentationIoU, HausdorffDistance
+)
+
+# For segmentation models, output shape should be (N, C, H, W)
+# where C is the number of classes
+auditor.add_metric(SegmentationDice())
+auditor.add_metric(SegmentationIoU())
+auditor.add_metric(HausdorffDistance())
+```
+
 ## License
 
 Apache-2.0
