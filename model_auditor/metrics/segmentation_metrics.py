@@ -63,9 +63,11 @@ class SegmentationMetric(Metric):
         labels = []
         for _, mask in dataset:
             if isinstance(mask, torch.Tensor):
-                labels.append(mask.numpy())
+                mask_np = mask.numpy()
             else:
-                labels.append(np.array(mask))
+                mask_np = np.array(mask)
+            # Squeeze to handle (1, H, W) -> (H, W)
+            labels.append(np.squeeze(mask_np))
         labels = np.stack(labels, axis=0)  # (N, H, W)
         
         return predictions, labels
@@ -211,10 +213,12 @@ class SegmentationAccuracy(Metric):
         labels = []
         for _, mask in dataset:
             if isinstance(mask, torch.Tensor):
-                labels.append(mask.numpy())
+                mask_np = mask.numpy()
             else:
-                labels.append(np.array(mask))
-        labels = np.stack(labels, axis=0)
+                mask_np = np.array(mask)
+            # Squeeze to handle (1, H, W) -> (H, W)
+            labels.append(np.squeeze(mask_np))
+        labels = np.stack(labels, axis=0)  # (N, H, W)
         
         correct = (predictions == labels).sum()
         total = predictions.size
