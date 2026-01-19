@@ -51,6 +51,14 @@ from .segmentation_metrics import (
     BoundaryIoU,
 )
 
+from .detection_metrics import (
+    DetectionAP,
+    DetectionAP50_95,
+    DetectionRecall,
+    DetectionPrecision,
+    DetectionF1,
+)
+
 __all__ = [
     # Binary Only Metrics
     "Sensitivity",
@@ -100,4 +108,11 @@ __all__ = [
     "AverageSurfaceDistance",
     "NormalizedSurfaceDistance",
     "BoundaryIoU",
+
+    # Detection Metrics
+    "DetectionAP",
+    "DetectionAP50_95",
+    "DetectionRecall",
+    "DetectionPrecision",
+    "DetectionF1",
 ] 

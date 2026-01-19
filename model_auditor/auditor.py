@@ -9,14 +9,16 @@ from .distribution_shift import DistributionShift
 from .metric import Metric
 
 class ModelAuditor:
-    def __init__(self, model: Union[torch.nn.Module, str], dataset: Dataset, device: str = None, batch_size: int = 32):
+    def __init__(self, model: Union[torch.nn.Module, str], dataset: Dataset, device: str = None, batch_size: int = 32, task_type: str = "classification"):
         """
         Args:
             model: Either a PyTorch model or path to ONNX model
             dataset: Dataset to audit
             device: Device to use for inference ('cuda', 'mps', 'cpu'). If None, auto-detect.
             batch_size: Batch size for inference (default: 32)
+            task_type: Task type ("classification", "segmentation", "detection"). Default: "classification"
         """
+        self.task_type = task_type
         self.is_onnx = isinstance(model, str)
         if self.is_onnx:
             self.model = ort.InferenceSession(model)
@@ -86,10 +88,18 @@ class ModelAuditor:
                         if len(batch_samples) == self.batch_size or i == len(shifted_dataset) - 1:
                             batch = torch.stack(batch_samples)
                             batch_logits = self._get_predictions_batch(batch)
-                            logits.append(batch_logits)
+                            
+                            if self.task_type == "detection":
+                                # Detection models return List[Dict] - extend the list, don't stack
+                                # batch_logits is a list of dicts for detection
+                                logits.extend(batch_logits)
+                            else:
+                                logits.append(batch_logits)
+                                
                             batch_samples = []
 
-                    logits = torch.cat(logits, dim=0)
+                    if self.task_type != "detection":
+                        logits = torch.cat(logits, dim=0)
                 
                 # Calculate metrics
                 for metric in self.metrics:
