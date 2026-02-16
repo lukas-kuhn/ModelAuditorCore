@@ -53,13 +53,15 @@ class MultiClassMetric(MetricsReloadedWrapper):
         if len(labels.shape) > 1:
             labels = labels.squeeze()
             
-        # Get unique classes from both predictions and labels
-        unique_labels = sorted(np.unique(np.concatenate([predictions, labels])))
-        
+        # Use all classes from model output (logits columns), not just those
+        # present in the subset — avoids IndexError when a class is missing
+        num_classes = logits.shape[1]
+        all_labels = list(range(num_classes))
+
         measures = MultiClassPairwiseMeasures(
-            pred=predictions, 
-            ref=labels, 
-            list_values=unique_labels, 
+            pred=predictions,
+            ref=labels,
+            list_values=all_labels,
             measures=[self.metric_key],
             dict_args=getattr(self, 'dict_args', {})
         )
