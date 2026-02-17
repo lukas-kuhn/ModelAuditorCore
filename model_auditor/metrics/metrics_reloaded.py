@@ -27,20 +27,37 @@ class MetricsReloadedWrapper(Metric):
         return np.eye(num_classes)[labels_np]
 
 class BinaryMetric(MetricsReloadedWrapper):
-    """Wrapper for binary metrics. Only works with binary classification tasks."""
+    """Wrapper for binary metrics. Works with binary classification directly,
+    and with multiclass via one-vs-rest macro-averaging."""
     def calculate(self, logits: torch.Tensor, dataset) -> float:
-        if logits.shape[1] != 2:
-            raise ValueError(f"{self.name} only works with binary classification (2 classes)")
         probs, labels = self._prepare_inputs(logits, dataset)
-        predictions = (probs[:, 1] > 0.5).astype(np.int32)
         labels = labels.numpy().astype(np.int32)
-        measures = BinaryPairwiseMeasures(
-            pred=predictions, 
-            ref=labels, 
-            measures=[self.metric_key],
-            dict_args=getattr(self, 'dict_args', {})
-        )
-        return measures.to_dict_meas()[self.metric_key]
+        num_classes = logits.shape[1]
+
+        if num_classes == 2:
+            predictions = (probs[:, 1] > 0.5).astype(np.int32)
+            measures = BinaryPairwiseMeasures(
+                pred=predictions,
+                ref=labels,
+                measures=[self.metric_key],
+                dict_args=getattr(self, 'dict_args', {})
+            )
+            return measures.to_dict_meas()[self.metric_key]
+
+        # Multiclass: one-vs-rest per class, then macro-average
+        predictions = np.argmax(probs, axis=1).astype(np.int32)
+        per_class_values = []
+        for c in range(num_classes):
+            binary_pred = (predictions == c).astype(np.int32)
+            binary_ref = (labels == c).astype(np.int32)
+            measures = BinaryPairwiseMeasures(
+                pred=binary_pred,
+                ref=binary_ref,
+                measures=[self.metric_key],
+                dict_args=getattr(self, 'dict_args', {})
+            )
+            per_class_values.append(measures.to_dict_meas()[self.metric_key])
+        return float(np.mean(per_class_values))
 
 class MultiClassMetric(MetricsReloadedWrapper):
     """Wrapper for multiclass metrics. Works with any number of classes."""
@@ -101,48 +118,62 @@ class CalibrationMetric(MetricsReloadedWrapper):
         )
         return measures.to_dict_meas()[self.metric_key]
 
-# Binary Only Metrics
+# Binary / Multiclass Metrics (one-vs-rest macro-averaged for multiclass)
 class Sensitivity(BinaryMetric):
-    """Binary only: True positive rate."""
+    """True positive rate. Macro-averaged via one-vs-rest for multiclass."""
     def __init__(self):
         super().__init__("sensitivity", "sensitivity")
 
 class Specificity(BinaryMetric):
-    """Binary only: True negative rate."""
+    """True negative rate. Macro-averaged via one-vs-rest for multiclass."""
     def __init__(self):
         super().__init__("specificity", "specificity")
 
 class PositivePredictiveValue(BinaryMetric):
-    """Binary only: Precision."""
+    """Precision. Macro-averaged via one-vs-rest for multiclass."""
     def __init__(self):
         super().__init__("positive_predictive_value", "ppv")
 
 class NegativePredictiveValue(BinaryMetric):
-    """Binary only: Negative predictive value."""
+    """Negative predictive value. Macro-averaged via one-vs-rest for multiclass."""
     def __init__(self):
         super().__init__("negative_predictive_value", "npv")
 
 class PositiveLikelihoodRatio(BinaryMetric):
-    """Binary only: Positive likelihood ratio."""
+    """Positive likelihood ratio. Macro-averaged via one-vs-rest for multiclass."""
     def __init__(self):
         super().__init__("positive_likelihood_ratio", "lr+")
 
 class DiceSimilarityCoefficient(BinaryMetric):
-    """Binary only: F1 score / Dice coefficient."""
+    """F1 score / Dice coefficient. Macro-averaged via one-vs-rest for multiclass."""
     def __init__(self):
         super().__init__("dice_similarity_coefficient", "dsc")
 
 class FBetaScore(BinaryMetric):
-    """Binary only: F-beta score."""
+    """F-beta score. Macro-averaged via one-vs-rest for multiclass."""
     def __init__(self, beta=1):
         super().__init__("fbeta_score", "fbeta")
         self.dict_args = {"beta": beta}
 
-class NetBenefit(BinaryMetric):
+class NetBenefit(MetricsReloadedWrapper):
     """Binary only: Net benefit."""
     def __init__(self, exchange_rate=1):
         super().__init__("net_benefit", "nb")
         self.dict_args = {"exchange_rate": exchange_rate}
+
+    def calculate(self, logits: torch.Tensor, dataset) -> float:
+        if logits.shape[1] != 2:
+            raise ValueError(f"{self.name} only works with binary classification (2 classes)")
+        probs, labels = self._prepare_inputs(logits, dataset)
+        predictions = (probs[:, 1] > 0.5).astype(np.int32)
+        labels = labels.numpy().astype(np.int32)
+        measures = BinaryPairwiseMeasures(
+            pred=predictions,
+            ref=labels,
+            measures=[self.metric_key],
+            dict_args=self.dict_args
+        )
+        return measures.to_dict_meas()[self.metric_key]
 
 # Multiclass Metrics
 class Accuracy(MetricsReloadedWrapper):
